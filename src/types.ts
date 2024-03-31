@@ -16,49 +16,70 @@ export type ValueByPath<
   P extends Path<T> | undefined = undefined,
 > = P extends undefined
   ? T
-  : P extends `${infer K}.${infer R}`
-  ? K extends keyof T
-    ? R extends Path<T[K]>
-      ? ValueByPath<T[K], R>
-      : T[K]
-    : never
-  : P extends keyof T
-  ? T[P]
-  : never;
-
-/**
- * Represents a path in an object.
- * @template T - The type of the object.
- * @template PathString - The string representation of the path.
- * If PathString is undefined, the type is undefined.
- * If PathString is a string representing a path in the object, the type is the path string.
- */
-export type Path<
-  T,
-  PathString extends string | undefined = undefined,
-> = T extends Primitive | NativeObject
-  ? PathString
-  : keyof T extends infer Key
-  ? Key extends string | number
+  : T extends any
+  ? P extends `${infer K}.${infer R}`
+    ? K extends keyof T
+      ? R extends Path<T[K]>
+        ? ValueByPath<T[K], R>
+        : never
+      : K extends `${number}`
+      ? T extends ReadonlyArray<infer V>
+        ? ValueByPath<V, R & Path<V>>
+        : never
+      : never
+    : P extends keyof T
+    ? T[P]
+    : P extends `${number}`
     ? T extends ReadonlyArray<infer V>
-      ? IsTuple<T> extends true
-        ? {
-            [K in TupleKeys<T>]-?: K extends number | string
-              ? Path<V, `${PathString}.${K}`>
-              : never;
-          }[TupleKeys<T>]
-        : PathString extends undefined
-        ? undefined | `${Key}` | Path<V, `${Key}`>
-        : `${PathString}.${Key}` | Path<V, `${PathString}.${Key}`>
-      : T extends {
-          [key in Key]: any;
-        }
-      ? PathString extends undefined
-        ? undefined | `${Key}` | Path<T[Key], `${Key}`>
-        : `${PathString}.${Key}` | Path<T[Key], `${PathString}.${Key}`>
+      ? V
       : never
     : never
   : never;
+
+/**
+ * Helper type for recursively constructing paths through a type.
+ * This actually constructs the strings and recurses into nested
+ * object types.
+ *
+ * See {@link Path}
+ */
+type PathImpl<K extends string | number, V, TraversedTypes> = V extends
+  | Primitive
+  | NativeObject
+  ? `${K}`
+  : true extends AnyIsEqual<TraversedTypes, V>
+  ? `${K}`
+  : `${K}` | `${K}.${PathInternal<V, TraversedTypes | V>}`;
+/**
+ * Helper type for recursively constructing paths through a type.
+ * This obscures the internal type param TraversedTypes from exported contract.
+ *
+ * See {@link Path}
+ */
+type PathInternal<T, TraversedTypes = T> = T extends ReadonlyArray<infer V>
+  ? IsTuple<T> extends true
+    ? {
+        [K in TupleKeys<T>]-?: K extends string | number
+          ? PathImpl<K, T[K], TraversedTypes>
+          : never;
+      }[TupleKeys<T>]
+    : PathImpl<number, V, TraversedTypes>
+  : {
+      [K in keyof T]-?: K extends string | number
+        ? PathImpl<K, T[K], TraversedTypes>
+        : never;
+    }[keyof T];
+/**
+ * Type which eagerly collects all paths through a type
+ * @typeParam T - type which should be introspected
+ * @example
+ * ```
+ * Path<{foo: {bar: string}}> = 'foo' | 'foo.bar'
+ * ```
+ */
+export type Path<T> = T extends Primitive | NativeObject
+  ? undefined
+  : undefined | PathInternal<T>;
 
 /**
  * Represents the difference between two objects at a specific path.
@@ -74,19 +95,19 @@ export type Diff<B, A, P extends Path<B | A> = Path<B | A>> = P extends any
           operation: "add";
           path: P;
           before: undefined;
-          after: ValueByPath<A, P>;
+          after: ValueByPath<A | B, P>;
         }
       | {
           operation: "delete";
           path: P;
-          before: ValueByPath<B, P>;
+          before: ValueByPath<A | B, P>;
           after: undefined;
         }
       | {
           operation: "update";
           path: P;
-          before: ValueByPath<B, P>;
-          after: ValueByPath<A, P>;
+          before: ValueByPath<A | B, P>;
+          after: ValueByPath<A | B, P>;
         }
   : never;
 
