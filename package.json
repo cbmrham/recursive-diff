@@ -1,10 +1,11 @@
 {
   "name": "@cbmrham/recursive-diff",
   "description": "A library that creates a diff object by comparing two objects recursively.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "cbmrham <ryuto.chiba@cbmrham.com>",
+  "homepage": "https://github.com/cbmrham/recursive-diff",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
